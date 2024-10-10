@@ -5,7 +5,7 @@ const cryptoPriceSchema = new mongoose.Schema({
     price: { type: Number, required: true },
     marketCap: { type: Number, required: true },
     change24h: { type: Number, required: true },
-    timestamp: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now }
 });
 
 const CryptoPrice = mongoose.model('CryptoPrice', cryptoPriceSchema);
