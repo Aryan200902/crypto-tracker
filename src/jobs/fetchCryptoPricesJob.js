@@ -1,14 +1,14 @@
-const fetchCryptoPrices = async () => {
-    const fetch = (await import('node-fetch')).default;
-    const CryptoPrice = require('../models/CryptoPrice');
+const {getCoinDetails} = require('../api/getCoinDetails.api');
 
+/**
+ * @dev Fetches Cryptocurrency price, market cap and 24hr change for bitcoin, matic-network and ethereum and stores them in database
+ */
+const fetchCryptoPrices = async () => {
+    const CryptoPrice = require('../models/CryptoPrice');
     const coins = ['bitcoin', 'matic-network', 'ethereum'];
     const results = [];
-
     for (const coin of coins) {
-        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd&include_market_cap=true&include_24hr_change=true`);
-        const data = await response.json();
-
+        const data = await getCoinDetails(coin);
         if (data[coin]) {
             const priceData = {
                 coin: coin,
@@ -20,7 +20,6 @@ const fetchCryptoPrices = async () => {
             results.push(priceData);
         }
     }
-
     try {
         await CryptoPrice.insertMany(results);
         console.log('Crypto prices saved to the database:', results);
@@ -28,5 +27,4 @@ const fetchCryptoPrices = async () => {
         console.error('Error saving crypto prices to the database:', error);
     }
 };
-
 module.exports = fetchCryptoPrices;
