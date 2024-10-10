@@ -1,52 +1,34 @@
-const CryptoPrice = require('../models/CryptoPrice');
+const { fetchCryptoPrices, calculateDeviation } = require('../services/cryptoService');
 
-// /stats endpoint
-exports.getLatestCryptoData = async (req, res) => {
-    const { coin } = req.query;
-
-    if (!['bitcoin', 'ethereum', 'matic-network'].includes(coin)) {
-        return res.status(400).json({ error: 'Invalid coin parameter' });
-    }
-
-    try {
-        const latestRecord = await CryptoPrice.findOne({ coin }).sort({ timestamp: -1 });
-        if (!latestRecord) {
-            return res.status(404).json({ error: 'No data available for this coin' });
-        }
-
-        res.json({
-            price: latestRecord.price,
-            marketCap: latestRecord.marketCap,
-            change24h: latestRecord.change24h
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
+// Controller function to get cryptocurrency prices
+const getCryptoData = async (req, res) => {
+  try {
+    const prices = await fetchCryptoPrices();
+    res.status(200).json(prices);
+  } catch (error) {
+    console.error('Error fetching crypto data:', error);
+    res.status(500).json({ message: 'Failed to fetch cryptocurrency prices', error: error.message });
+  }
 };
 
-// /deviation endpoint
-exports.getCryptoPriceDeviation = async (req, res) => {
+// Controller function to get standard deviation of prices for a specific coin
+const getStandardDeviation = async (req, res) => {
+  try {
     const { coin } = req.query;
 
-    if (!['bitcoin', 'ethereum', 'matic-network'].includes(coin)) {
-        return res.status(400).json({ error: 'Invalid coin parameter' });
+    if (!coin) {
+      return res.status(400).json({ message: 'Coin query parameter is required' });
     }
 
-    try {
-        const prices = await CryptoPrice.find({ coin }).sort({ timestamp: -1 }).limit(100).select('price');
-        
-        if (prices.length === 0) {
-            return res.status(404).json({ error: 'No data available for this coin' });
-        }
+    const deviation = await calculateDeviation(coin);
+    res.status(200).json({ deviation: deviation.toFixed(2) });
+  } catch (error) {
+    console.error('Error calculating standard deviation:', error);
+    res.status(500).json({ message: 'Failed to calculate standard deviation', error: error.message });
+  }
+};
 
-        // Extract prices and calculate standard deviation
-        const priceValues = prices.map(p => p.price);
-        const mean = priceValues.reduce((a, b) => a + b, 0) / priceValues.length;
-        const variance = priceValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / priceValues.length;
-        const standardDeviation = Math.sqrt(variance);
-
-        res.json({ deviation: parseFloat(standardDeviation.toFixed(2)) });
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
+module.exports = {
+  getCryptoData,
+  getStandardDeviation,
 };

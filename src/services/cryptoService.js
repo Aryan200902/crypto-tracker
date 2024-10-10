@@ -1,33 +1,70 @@
 const axios = require('axios');
-const CryptoPrice = require('../models/CryptoPrice');
-const cron = require('node-cron');
+const CryptoPrice = require('../models/CryptoPrice'); // Your Mongoose model
+const mongoose = require('mongoose');
 
-const fetchCryptoData = async () => {
-    try {
-        const response = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
-            params: {
-                vs_currency: 'usd',
-                ids: 'bitcoin,ethereum,matic-network'
-            }
-        });
+// Function to fetch cryptocurrency prices from CoinGecko
+const fetchCryptoPrices = async () => {
+  try {
+    const coins = ['bitcoin', 'matic-network', 'ethereum'];
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coins.join(',')}&vs_currencies=usd&include_market_cap=true&include_24hr_change=true`;
+    
+    const response = await axios.get(url);
+    
+    const prices = response.data;
+    
+    // Create price objects to save in the database
+    const priceData = coins.map((coin) => ({
+      coin: coin,
+      price: prices[coin].usd,
+      market_cap: prices[coin].usd_market_cap,
+      daily_change: prices[coin].usd_24h_change,
+    }));
 
-        const cryptos = response.data;
+    // Save each coin's data to the database
+    await CryptoPrice.insertMany(priceData);
 
-        // Save each cryptocurrency to the database
-        for (const crypto of cryptos) {
-            const newPrice = new CryptoPrice({
-                coin: crypto.id,
-                price: crypto.current_price,
-                marketCap: crypto.market_cap,
-                change24h: crypto.price_change_percentage_24h
-            });
-            await newPrice.save();
-        }
-        console.log('Crypto data successfully saved');
-    } catch (error) {
-        console.error('Error fetching crypto data:', error.message);
-    }
+    return priceData;
+  } catch (error) {
+    console.error('Error fetching crypto prices:', error);
+    throw new Error('Failed to fetch prices from CoinGecko.');
+  }
 };
 
-// Run every 2 hours
-cron.schedule('0 */2 * * *', fetchCryptoData);
+// Function to calculate the standard deviation for a cryptocurrency's price
+const calculateDeviation = async (coin) => {
+  try {
+    // Fetch the latest 100 price records for the specified coin
+    const prices = await CryptoPrice.find({ coin })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .select('price');
+
+    if (prices.length < 2) {
+      throw new Error('Not enough price data to calculate deviation');
+    }
+
+    // Extract price values
+    const priceValues = prices.map((price) => price.price);
+
+    // Calculate the mean (average)
+    const mean = priceValues.reduce((a, b) => a + b, 0) / priceValues.length;
+
+    // Calculate the variance
+    const variance =
+      priceValues.reduce((acc, price) => acc + Math.pow(price - mean, 2), 0) /
+      priceValues.length;
+
+    // Standard deviation is the square root of variance
+    const standardDeviation = Math.sqrt(variance);
+
+    return standardDeviation;
+  } catch (error) {
+    console.error('Error calculating standard deviation:', error);
+    throw new Error('Failed to calculate standard deviation.');
+  }
+};
+
+module.exports = {
+  fetchCryptoPrices,
+  calculateDeviation,
+};
