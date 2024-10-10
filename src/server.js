@@ -15,12 +15,7 @@ app.use(express.json());
 app.use('/api', cryptoRoutes);
 
 // Schedule the background job to run every 2 hours
-// cron.schedule('0 */2 * * *', () => {
-//     console.log('Fetching crypto prices...');
-//     fetchCryptoPrices();
-// });
-
-cron.schedule('* * * * *', () => {
+cron.schedule('0 */2 * * *', () => {
     console.log('Fetching crypto prices...');
     fetchCryptoPrices();
 });
